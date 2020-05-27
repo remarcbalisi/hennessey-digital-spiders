@@ -7,10 +7,27 @@ import scrapy
 from scrapy import Request, FormRequest, Selector
 from scrapy.loader import ItemLoader
 from scrapy.spiders import CrawlSpider
+import math
 
 
 class ProfileSpider(CrawlSpider):
-    name = 'protein'
+    name = 'zoneperfect'
+    urls = [
+        "https://www.nugonutrition.com/collections/products",
+        "https://www.questnutrition.com/collections/protein-bars",
+        "https://www.detourbar.com/collections/all",
+        "https://www.nashuanutrition.com/collections/best-protein-bars",
+        "https://protifoods.com/all-protein-products/protein-bars/",
+        "https://shop.metrx.com/Protein-Bars-and-Snacks/c/METRx@ProteinBars",
+        "https://maximsportvoeding.nl/maxim_en/producten-en/protein-bars",
+        "https://slim4life.com/product-category/all-supplements/snack-bars/",
+        "https://shop.thinkproducts.com/Protein-Bars/c/ThinkProducts@Bars",
+        "https://store.shopqwlc.com/collections/all-products/bars#MainContent",
+        "https://www.bodylab.dk/shop/proteinbarer-12c1.html",
+        "https://aussiebodies.com.au/products/all/?c=bar",
+        "https://zoneperfect.com/products/macros",
+        "https://zoneperfect.com/products/classics-bars",
+    ]
 
     # def __init__(self, url="https://www.nugonutrition.com/collections/products", *args, **kwargs):
     # def __init__(self, url="https://www.questnutrition.com/collections/protein-bars", *args, **kwargs):
@@ -24,23 +41,10 @@ class ProfileSpider(CrawlSpider):
     # def __init__(self, url="https://shop.thinkproducts.com/Protein-Bars/c/ThinkProducts@Bars", *args, **kwargs):
     # def __init__(self, url="https://store.shopqwlc.com/collections/all-products/bars#MainContent", *args, **kwargs):
     # def __init__(self, url="https://www.bodylab.dk/shop/proteinbarer-12c1.html", *args, **kwargs):
-    def __init__(self, url="https://aussiebodies.com.au/products/all/?c=bar", *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(ProfileSpider, self).__init__(*args, **kwargs)
-        self.url = url
-        self.urls = [
-            "https://www.nugonutrition.com/collections/products",
-            "https://www.questnutrition.com/collections/protein-bars",
-            "https://www.detourbar.com/collections/all",
-            "https://www.nashuanutrition.com/collections/best-protein-bars",
-            "https://protifoods.com/all-protein-products/protein-bars/",
-            "https://shop.metrx.com/Protein-Bars-and-Snacks/c/METRx@ProteinBars",
-            "https://maximsportvoeding.nl/maxim_en/producten-en/protein-bars",
-            "https://slim4life.com/product-category/all-supplements/snack-bars/",
-            "https://shop.thinkproducts.com/Protein-Bars/c/ThinkProducts@Bars",
-            "https://store.shopqwlc.com/collections/all-products/bars#MainContent",
-            "https://www.bodylab.dk/shop/proteinbarer-12c1.html",
-            "https://aussiebodies.com.au/products/all/?c=bar",
-        ]
+        self.url = self.urls[-2]
+
 
     # def start_requests(self):
     #     lists = []
@@ -105,6 +109,134 @@ class ProfileSpider(CrawlSpider):
             lists.append(Request(self.url, callback=self.parse_items_bodylab))
         elif "aussiebodies" in self.url:
             lists.append(Request(self.url, callback=self.parse_items_aussiebodies))
+        elif "zoneperfect" in self.url:
+            lists.append(Request(self.url, callback=self.parse_items_zoneperfect))
+        return lists
+
+    def parse_items_zoneperfect(self, response):
+        lists = []
+        base_url = 'https://zoneperfect.com/'
+        for url in response.xpath('//div[@class="PCP-ProductItem__text"]/a/@href').extract():
+            lists.append(
+                Request(f"{base_url}{url}", callback=self.zoneperfect)
+            )
+        return lists
+
+    def zoneperfect(self, response):
+        lists = []
+        variants = response.xpath(
+            '//div[6]/select[@class="PDP-Hero__select"]/option/text()'
+        ).getall()
+
+        for variant in variants:
+            item = ItemLoader(ProteinBarsItem(), response)
+            product_title = response.xpath('//div[@class="PCP-ProductItem__title"]/text()').get()
+            product_sub_title = response.xpath('//div[@class="PCP-ProductItem__subtitle"]/text()').get()
+            name = f"{product_title} {product_sub_title} - {variant}"
+            item.add_value("name", name)
+            item.add_value("available", 'yes')
+            item.add_xpath("brand", '//div[@class="PDP-Hero__title"]/h1/text()')
+            item.add_xpath("description", "//div[@class=\"PDP-Hero__text\"]/p/text()")
+
+            table_rows = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()
+            for index in range(len(table_rows)):
+                if "Calories:" in table_rows[index]:
+                    item.add_value("calories", str(table_rows[index]).split(": ")[1])
+
+                if "Calories from" in table_rows[index]:
+                    item.add_value("calories_from_fat", str(table_rows[index]).split(": ")[1])
+
+                if "Calcium:" in table_rows[index]:
+                    calcium = \
+                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
+                    item.add_value("calcium", calcium)
+
+                if "Cholesterol, mg:" in table_rows[index]:
+                    cholesterol = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    item.add_value("cholesterol", cholesterol)
+
+                if "Dietary Fiber," in table_rows[index]:
+                    dietary_fibr = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    item.add_value("dietary_fiber", dietary_fibr)
+
+                if "Iron:" in table_rows[index]:
+                    item.add_value("iron", str(table_rows[index]).split(":")[1])
+
+                if "Magnesium:" in table_rows[index]:
+                    item.add_value("magnesium", str(table_rows[index]).split(":")[1])
+
+                if "Niacin:" in table_rows[index]:
+                    item.add_value("niacin", str(table_rows[index]).split(":")[1])
+
+                if "Phosphorus:" in table_rows[index]:
+                    item.add_value("phosphorus", str(table_rows[index]).split(":")[1])
+
+                if "Potassium," in table_rows[index]:
+                    potassium = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    item.add_value("potassium", potassium)
+
+                if "Protein, " in table_rows[index]:
+                    protein = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    item.add_value("protein", protein)
+
+                if "Riboflavin:" in table_rows[index]:
+                    item.add_value("riboflavin", str(table_rows[index]).split(":")[1])
+
+                if "Saturated Fat," in table_rows[index]:
+                    sfat = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
+                    item.add_value("saturated_fat", sfat)
+
+                if "Sodium," in table_rows[index]:
+                    sodium = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
+                    item.add_value("sodium", sodium)
+
+                if "Sodium," in table_rows[index]:
+                    sodium = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
+                    item.add_value("sodium", sodium)
+
+                if "Thiamin:" in table_rows[index]:
+                    item.add_value("thiamin", str(table_rows[index]).split(":")[1])
+
+                if "Total Carbohydrate," in table_rows[index]:
+                    total_carb = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
+                    item.add_value("total_carbohydrate", total_carb)
+
+                if "Total Fat," in table_rows[index]:
+                    total_fat = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    item.add_value("total_fat", total_fat)
+
+                if "Vitamin A:" in table_rows[index]:
+                    vitamin_a = \
+                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
+                    item.add_value("vitamin_a", vitamin_a)
+
+                if "Vitamin B12:" in table_rows[index]:
+                    vitamin_b12 = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
+                    item.add_value("vitamin_b12", vitamin_b12)
+
+                if "Vitamin B6:" in table_rows[index]:
+                    vitamin_b6 = \
+                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
+                    item.add_value("vitamin_b6", vitamin_b6)
+
+                if "Vitamin C:" in table_rows[index]:
+                    vitamin_c = \
+                        response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                            (index + 1)]
+                    item.add_value("vitamin_c", vitamin_c)
+
+            item.add_xpath("images", '//meta[@property="og:image"]/@content')
+            item.add_xpath("description", '//div[@class="PDP-Info__col PDP-Info__col--ingredients"]//p[2]/text()')
+            lists.append(item.load_item())
+
         return lists
 
     def parse_items_aussiebodies(self, response):
