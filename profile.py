@@ -11,7 +11,7 @@ import math
 
 
 class ProfileSpider(CrawlSpider):
-    name = 'zoneperfect'
+    name = 'grenade'
     urls = [
         "https://www.nugonutrition.com/collections/products",
         "https://www.questnutrition.com/collections/protein-bars",
@@ -27,6 +27,7 @@ class ProfileSpider(CrawlSpider):
         "https://aussiebodies.com.au/products/all/?c=bar",
         "https://zoneperfect.com/products/macros",
         "https://zoneperfect.com/products/classics-bars",
+        "https://www.grenade.com/us/grenade-carb-killa/",
     ]
 
     # def __init__(self, url="https://www.nugonutrition.com/collections/products", *args, **kwargs):
@@ -43,7 +44,7 @@ class ProfileSpider(CrawlSpider):
     # def __init__(self, url="https://www.bodylab.dk/shop/proteinbarer-12c1.html", *args, **kwargs):
     def __init__(self, *args, **kwargs):
         super(ProfileSpider, self).__init__(*args, **kwargs)
-        self.url = self.urls[-2]
+        self.url = self.urls[-1]
 
 
     # def start_requests(self):
@@ -111,6 +112,68 @@ class ProfileSpider(CrawlSpider):
             lists.append(Request(self.url, callback=self.parse_items_aussiebodies))
         elif "zoneperfect" in self.url:
             lists.append(Request(self.url, callback=self.parse_items_zoneperfect))
+        elif "grenade" in self.url:
+            lists.append(Request(self.url, callback=self.parse_items_grenade))
+        return lists
+
+    def parse_items_grenade(self, response):
+        lists = []
+        base_url = 'https://www.grenade.com/us/grenade-carb-killa/'
+        categories = [
+            'birthday-cake',
+            'caramel-chaos',
+            'chocolate-chip-cookie-dough',
+            'chocolate-cream',
+            'dark-chocolate-raspberry',
+            'gingerbread',
+            'peanut-nutter',
+            'salted-caramel',
+            'white-chocolate-cookie',
+            'white-chocolate-salted-peanut',
+        ]
+        for category in categories:
+            lists.append(
+                Request(f"{base_url}{category}", callback=self.grenade)
+            )
+        return lists
+
+    def grenade(self, response):
+        lists = []
+        item = ItemLoader(ProteinBarsItem(), response)
+        amount_per_serving = response.xpath(
+            '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[1]/th[2]/text()').get()
+        item.add_value("amount_per_serving", amount_per_serving[amount_per_serving.find("(")+1:amount_per_serving.find(")")])
+        item.add_value("brand", 'Carb Killa')
+        item.add_value("vendor", 'Grenade')
+        item.add_value("available", 'yes')
+        item.add_value('src', response.url)
+        item.add_xpath("images", '//meta[@property="og:image"]/@content')
+
+        item.add_xpath('name', '//*[@id="maincontent"]/div[2]/div/div[4]/div[2]/div[1]/div[1]/div/h1/text()')
+        item.add_xpath('calories', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[2]/td[2]/text()')
+        item.add_xpath('cholesterol', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[6]/td[2]/text()')
+        item.add_xpath('cholesterol_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[6]/td[3]/text()')
+        item.add_xpath('description', '//*[@id="maincontent"]/div[2]/div/div[4]/div[2]/div[1]/div[3]/div/p[1]/text()')
+        item.add_xpath('dietary_fiber', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[10]/td[2]/text()')
+        item.add_xpath('dietary_fiber_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[10]/td[3]/text()')
+        item.add_xpath('ingredients', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[1]/div/div/p[1]/text()')
+        item.add_xpath('potassium', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[8]/td[2]/text()')
+        item.add_xpath('potassium_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[8]/td[3]/text()')
+        item.add_xpath('price', '//*[@id="maincontent"]/div[2]/div/div[4]/div[2]/div[1]/div[2]/div/span/text()')
+        item.add_xpath('protein', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[14]/td[2]/text()')
+        item.add_xpath('protein_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[14]/td[3]/text()')
+        item.add_xpath('saturated_fat', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[4]/td[2]/text()')
+        item.add_xpath('saturated_fat_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[4]/td[3]/text()')
+        item.add_xpath('sodium', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[7]/td[2]/text()')
+        item.add_xpath('sodium_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[7]/td[3]/text()')
+        item.add_xpath('sugars', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[11]/td[2]/text()')
+        item.add_xpath('total_carbohydrate', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[9]/td[2]/text()')
+        item.add_xpath('total_carbohydrate_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[9]/td[3]/text()')
+        item.add_xpath('total_fat', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[3]/td[2]/text()')
+        item.add_xpath('total_fat_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[3]/td[3]/text()')
+        item.add_xpath('trans_fat', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[5]/td[3]/text()')
+        lists.append(item.load_item())
+
         return lists
 
     def parse_items_zoneperfect(self, response):
