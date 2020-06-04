@@ -4,6 +4,21 @@ from scrapy import Request, FormRequest, Selector
 from scrapy.loader import ItemLoader
 from .protein_bars_item import ProteinBarsItem
 
+from selenium.webdriver.support import expected_conditions as EC
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions \
+    import TimeoutException, \
+    NoSuchElementException, \
+    ElementClickInterceptedException, \
+    ElementNotInteractableException
+from selenium.webdriver.support.wait import WebDriverWait
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+
+chrome_options = Options()
+chrome_options.add_argument("--headless")
+
 
 class GrenadeSpider(CrawlSpider):
     name = 'grenade'
@@ -11,6 +26,9 @@ class GrenadeSpider(CrawlSpider):
     def __init__(self, *args, **kwargs):
         super(GrenadeSpider, self).__init__(*args, **kwargs)
         self.url = 'https://www.grenade.com/us/grenade-carb-killa/'
+        self.browser = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
+        # self.browser = webdriver.Chrome(ChromeDriverManager().install())
+        self.review_string_arr = []
 
     def start_requests(self):
         lists = []
@@ -23,6 +41,9 @@ class GrenadeSpider(CrawlSpider):
         return lists
 
     def parse_item(self, response):
+
+        self.crawl_reviews()
+
         lists = []
         base_url = 'https://www.grenade.com/us/grenade-carb-killa/'
         categories = [
@@ -101,6 +122,33 @@ class GrenadeSpider(CrawlSpider):
         item.add_xpath('trans_fat',
                        '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[5]/td[3]/text()')
         item.add_xpath('shipping_info', '//*[@id="open-shipping-modal"]/text()')
+        item.add_value('reviews', self.review_string_arr)
         lists.append(item.load_item())
 
         return lists
+
+    def crawl_reviews(self):
+        self.browser.get(self.url)
+        button_is_clickable = True
+        while button_is_clickable is True:
+            try:
+                button = WebDriverWait(self.browser, 10).until(
+                    EC.presence_of_all_elements_located((By.ID, 'more-reviews')))
+                button[0].click()
+                print('button')
+                print(button)
+                # button[0].click()
+            except NoSuchElementException:
+                button_is_clickable = False
+
+            except ElementNotInteractableException:
+                button_is_clickable = False
+
+            except ElementClickInterceptedException: continue
+
+        reviews = WebDriverWait(self.browser, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.review-body-text')))
+
+        for review in reviews:
+            body = review.find_element_by_css_selector("span[class='partial']")
+            print(body)
+            self.review_string_arr.append(body.text)

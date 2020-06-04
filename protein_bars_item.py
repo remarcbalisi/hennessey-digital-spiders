@@ -102,3 +102,4 @@ class ProteinBarsItem(scrapy.Item):
     maltitol = DEFAULT
     glycerol = DEFAULT
     shipping_info = DEFAULT
+    reviews = DEFAULT
