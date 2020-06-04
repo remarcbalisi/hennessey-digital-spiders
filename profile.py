@@ -28,7 +28,12 @@ class ProfileSpider(CrawlSpider):
         "https://zoneperfect.com/products/macros",
         "https://zoneperfect.com/products/classics-bars",
         "https://www.grenade.com/us/grenade-carb-killa/",
-        "https://julianbakery.com/shop/?fwp_categories=protein-bar&fwp_load_more=5"
+        "https://julianbakery.com/shop/?fwp_categories=protein-bar&fwp_load_more=5",
+        "https://shop.musclemilk.com/Protein-Bars/c/MuscleMilk@Bar",
+        "https://musclepharm.com/collections/protein/products/combat-crunch-1?variant=37547061770",
+        "https://www.nutrisystem.com/jsps_hmr/catalog/a-la-carte.jsp?categoryId=54",
+        "https://shop.oatmega.com/Bars/c/Oatmega@Bars",
+        "https://www.optimumnutrition.com/en-gb/products/protein-products/whey?subcategory[51]=51&type[161]=161&sort_bef_combine=title%20ASC&subcategory[61]=61&subcategory[1036]=1036&subcategory[56]=56&subcategory[71]=71",
     ]
 
     # def __init__(self, url="https://www.nugonutrition.com/collections/products", *args, **kwargs):
@@ -46,7 +51,6 @@ class ProfileSpider(CrawlSpider):
     def __init__(self, *args, **kwargs):
         super(ProfileSpider, self).__init__(*args, **kwargs)
         self.url = self.urls[-1]
-
 
     # def start_requests(self):
     #     lists = []
@@ -117,6 +121,162 @@ class ProfileSpider(CrawlSpider):
             lists.append(Request(self.url, callback=self.parse_items_grenade))
         elif "julianbakery" in self.url:
             lists.append(FormRequest(self.url, callback=self.parse_julian_bakery))
+        elif "musclemilk" in self.url:
+            lists.append(Request(self.url, callback=self.parse_musclemilk))
+        elif "musclepharm" in self.url:
+            lists.append(Request(self.url, callback=self.parse_muscle_pharm))
+        elif "nutrisystem" in self.url:
+            lists.append(Request(self.url, callback=self.parse_nutri_system))
+        elif "oatmega" in self.url:
+            lists.append(Request(self.url, callback=self.parse_oatmega))
+        elif "optimumnutrition" in self.url:
+            lists.append(Request(self.url, callback=self.parse_optimumnutrition))
+
+        return lists
+
+    def parse_optimumnutrition(self, response):
+        lists = []
+        products = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " views-row ")]/article/a/@href').getall()
+        base_url = 'https://www.optimumnutrition.com'
+        for product in products:
+            lists.append(
+                Request(f"{base_url}{product}", callback=self.optimumnutrition)
+            )
+
+    def optimumnutrition(self, response):
+        pass
+
+    def parse_oatmega(self, response):
+        products = response.xpath('//div[@class="item_detail"]/div/a/@href').extract()
+        lists = []
+        base_url = 'https://shop.oatmega.com'
+        for link in products:
+            lists.append(
+                Request(f"{base_url}{link}", callback=self.oatmega)
+            )
+
+        return lists
+
+    def oatmega(self, response):
+        lists = []
+        variants = response.xpath('//div[@class="variant_row"]/form/div[@class="product"]/div[1]/text()').getall()
+        prices = response.xpath('//div[@class="reg_price"]/span[2]/text()').getall()
+        counter = 0
+        for variant in variants:
+            item = ItemLoader(ProteinBarsItem(), response)
+            item.add_value('amount_per_serving', variant)
+            item.add_value('available', 'yes')
+            name = response.xpath('//h1[@class="page_title"]/text()').get()
+            item.add_value('name', f"OatMega {name} - {variant}")
+            item.add_value('brand', 'Oatmega')
+            item.add_xpath('description', '//*[@id="product_detail"]/div[2]/div/div[3]/p[2]/text()')
+            item.add_xpath('images', '//*[@id="product_detail"]/div[1]/div[2]/img/@src')
+            ingredients = response.xpath('//*[@id="ingredients_display"]/p[1]/text()').get()
+            item.add_value('ingredients', ingredients.replace('INGREDIENTS: ', ''))
+            item.add_value('price', prices[counter])
+            item.add_value('src', response.url)
+            item.add_xpath('nutrition_facts_image_url', '//*[@id="nutrition_display"]/div/img/@src')
+            lists.append(item.load_item())
+            counter += 1
+
+        return lists
+
+    def parse_nutri_system(self, response):
+        lists = []
+        base_url = 'https://www.nutrisystem.com'
+        products = response.xpath('//*[@id="productItem"]/div[2]/a/text()').getall()
+        links = response.xpath('//*[@id="productItem"]/div[2]/a/@href').getall()
+        counter = 0
+        for product in products:
+            if 'bar' in product:
+                lists.append(
+                    Request(f"{base_url}{links[counter]}", callback=self.nutri_system)
+                )
+
+    def nutri_system(self, response):
+        lists = []
+        # item = ItemLoader(ProteinBarsItem(), response)
+        # item.add_value('available', 'yes')
+        # item.add_value('brand', 'Nutri System')
+
+    def parse_muscle_pharm(self, response):
+        lists = []
+        variants = response.xpath('//select[@id="product-select-10077302986productproduct-template"]/option/text()').getall()
+        for variant in variants:
+            item = ItemLoader(ProteinBarsItem(), response)
+            sold_out = response.xpath('//*[@id="shopify-section-product-template"]/div[1]/div[2]/div[1]/div/div[3]/p/span[1]/text()').get()
+            item.add_value('brand', 'Muscle Pharm')
+            item.add_value('calories', '210')
+            item.add_xpath('description', '//*[@id="shopify-section-product-template"]/div[1]/div[2]/div[1]/div/div[3]/div[2]/p/span')
+            item.add_xpath('description', '//*[@id="shopify-section-product-template"]/div[1]/div[2]/div[1]/div/div[3]/div[2]/p/span')
+            item.add_xpath('images', "//meta[@property='og:image']/@content")
+            item.add_value('name', f"COMBAT CRUNCH PROTEIN BARS {variant}")
+            item.add_xpath('price', '//*[@id="shopify-section-product-template"]/div[1]/div[2]/div[1]/div/div[3]/p/span[2]/span/span/text()')
+            item.add_value('protein', '20g')
+            item.add_value('available', 'yes' if sold_out is None else 'no')
+            lists.append(item.load_item())
+
+        return lists
+
+    def parse_musclemilk(self, response):
+        lists = []
+        products = response.xpath('//div[@class="category_prod_head"]/a/@href').extract()
+        base_url = 'https://shop.musclemilk.com/'
+        for product in products:
+            lists.append(
+                Request(f"{base_url}{product}", callback=self.musclemilk)
+            )
+        return lists
+
+    def musclemilk(self, response):
+        lists = []
+        variants = response.xpath('//div[@class="data-group-REG"]/ul/li/a/div[1]/text()').getall()
+        prices = response.xpath('//div[@class="data-group-REG"]/ul/li/a/div[1]/text()').getall()
+        counter = 0
+        for variant in variants:
+            item = ItemLoader(ProteinBarsItem(), response)
+            oos = response.xpath('//div[@class="oos"]').get()
+            brand = response.xpath('//div[@class="right_variant_display"]/h1[1]/span/text()').get()
+            serving = re.search(r"\d+(?:[.,]\d+)?g",
+                                response.xpath('//div[@class="right_variant_display"]/h1[1]/span/text()').getall()[1])
+            item.add_value('amount_per_serving', serving.group(0))
+            item.add_value('available', 'yes' if oos is None else 'no')
+            item.add_value('brand', brand)
+            item.add_value('src', response.url)
+            flavor = response.xpath('//*[@id="product_detail"]/div[2]/h1/text()').getall()
+            flavor_joined = " ".join(flavor)
+            item.add_value('name', f"{brand}{flavor_joined} - {variant}")
+            item.add_value('price', prices[counter])
+            item.add_value('price', prices[counter])
+            item.add_xpath('calcium', '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[16]/td[2]/text()')
+            item.add_xpath('calories', '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[1]/td[1]/text()')
+            item.add_xpath('calories_from_fat', '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[1]/td[2]/text()')
+            item.add_xpath('cholesterol', '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[6]/td[1]/text()')
+            item.add_xpath('cholesterol_percentage', '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[6]/td[2]/text()')
+            item.add_xpath('description', '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[6]/td[2]/text()')
+            item.add_xpath('dietary_fiber', '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[10]/td[1]/text()')
+            item.add_xpath("images", '//meta[@property="og:image"]/@content')
+            item.add_xpath("ingredients", '//div[@id="nutrition_display"]/div[2]//table//tr/td/p[1]/text()')
+            item.add_xpath("iron", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[17]/td[2]/text()')
+            item.add_xpath("magnesium", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[17]/td[2]/text()')
+            item.add_xpath("potassium", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[8]/td[1]/text()')
+            item.add_xpath("potassium_percentage", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[8]/td[2]/text()')
+            item.add_xpath("protein", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[13]/td[1]/text()')
+            item.add_xpath("protein_percentage", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[13]/td[2]/text()')
+            item.add_xpath("saturated_fat", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[4]/td[1]/text()')
+            item.add_xpath("saturated_fat_percentage", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[4]/td[2]/text()')
+            item.add_xpath("sodium", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[7]/td[1]/text()')
+            item.add_xpath("sodium_percentage", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[7]/td[2]/text()')
+            item.add_xpath("sugars", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[7]/td[2]/text()')
+            item.add_xpath("total_carbohydrate", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[9]/td[1]/text()')
+            item.add_xpath("total_carbohydrate_percentage", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[9]/td[2]/text()')
+            item.add_xpath("total_fat", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[3]/td[1]/text()')
+            item.add_xpath("total_fat_percentage", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[3]/td[2]/text()')
+            item.add_xpath("trans_fat", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[5]/td[1]/text()')
+            item.add_xpath("vitamin_a", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[14]/td[2]/text()')
+            item.add_xpath("vitamin_c", '//div[@id="nutrition_display"]/div[@class="nutrition"]//table//tr[15]/td[2]/text()')
+            lists.append(item.load_item())
+            counter += 1
 
         return lists
 
@@ -133,36 +293,56 @@ class ProfileSpider(CrawlSpider):
     def jullian_bakery(self, response):
         lists = []
         item = ItemLoader(ProteinBarsItem(), response)
-        price = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[2]/div/div/p/span/text()').get()
-        currency = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[2]/div/div/p/span/span/text()').get()
-
+        price = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[2]/div/div/p/span/text()').get()
+        currency = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[2]/div/div/p/span/span/text()').get()
 
         item.add_xpath('name', '//*[@id="product-508"]/section[1]/div/div/div[1]/h1/text()')
         item.add_value('price', f"{currency}{price}")
-        item.add_xpath('description', '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[2]/p/text()')
-        item.add_xpath('protein', '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[2]/div[2]/div/span[1]')
+        item.add_xpath('description',
+                       '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[2]/p/text()')
+        item.add_xpath('protein',
+                       '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[2]/div[2]/div/span[1]')
         item.add_xpath("images", '//meta[@property="og:image"]/@content')
         item.add_value("available", 'yes')
         item.add_value("brand", 'Julian Bakery')
         item.add_value("brand", 'Julian Bakery')
 
-        calcium = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[17]/span[1]/text()').get()
-        calories = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[4]/span[2]/text()').get()
-        cholesterol = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[9]/span[1]/text()').get()
-        cholesterol_percentage = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[9]/span[2]/text()').get()
-        dietary_fiber = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[12]/span[1]/text()').get()
-        dietary_fiber_percentage = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[12]/span[2]/text()').get()
-        iron = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[18]/span[1]/text()').get()
-        potassium = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[19]/span[1]/text()').get()
-        potassium_percentage = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[19]/span[2]/text()').get()
-        saturated_fat = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[7]/span[1]/text()').get()
-        saturated_fat_percentage = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[7]/span[2]/text()').get()
-        serving_size = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[2]/text()').get()
-        sodium = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[10]/span[1]/text()').get()
-        total_sugars = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[13]/span/text()').get()
-        total_carbohydrate = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[11]/span[1]/text()').get()
-        total_fat = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[6]/span[1]/text()').get()
-        trans_fat = response.xpath('//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[8]/span/text()').get()
+        calcium = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[17]/span[1]/text()').get()
+        calories = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[4]/span[2]/text()').get()
+        cholesterol = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[9]/span[1]/text()').get()
+        cholesterol_percentage = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[9]/span[2]/text()').get()
+        dietary_fiber = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[12]/span[1]/text()').get()
+        dietary_fiber_percentage = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[12]/span[2]/text()').get()
+        iron = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[18]/span[1]/text()').get()
+        potassium = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[19]/span[1]/text()').get()
+        potassium_percentage = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[19]/span[2]/text()').get()
+        saturated_fat = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[7]/span[1]/text()').get()
+        saturated_fat_percentage = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[7]/span[2]/text()').get()
+        serving_size = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[2]/text()').get()
+        sodium = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[10]/span[1]/text()').get()
+        total_sugars = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[13]/span/text()').get()
+        total_carbohydrate = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[11]/span[1]/text()').get()
+        total_fat = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[6]/span[1]/text()').get()
+        trans_fat = response.xpath(
+            '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[8]/span/text()').get()
 
         if calcium is not None:
             item.add_value("calcium", calcium.split(' ')[1])
@@ -174,7 +354,8 @@ class ProfileSpider(CrawlSpider):
             item.add_value("dietary_fiber", dietary_fiber.split(' ')[2])
         if dietary_fiber_percentage is not None:
             item.add_value("dietary_fiber_percentage", dietary_fiber_percentage.replace('%', ''))
-        item.add_xpath('ingredients', '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/p[1]/text()')
+        item.add_xpath('ingredients',
+                       '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/p[1]/text()')
         if iron is not None:
             try:
                 item.add_value('iron', iron.split(' ')[1])
@@ -197,16 +378,19 @@ class ProfileSpider(CrawlSpider):
             item.add_value('serving_size', " ".join(serving_size.split(' ')[3:-1]))
         if sodium is not None:
             item.add_value('sodium', sodium.replace(' ', ''))
-        item.add_xpath('sodium', '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[10]/span[2]/text()')
+        item.add_xpath('sodium',
+                       '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[10]/span[2]/text()')
         item.add_value('src', response.url)
         if total_sugars is not None:
             item.add_value('sugars', total_sugars.split(' ')[2])
         if total_carbohydrate is not None:
             item.add_value('total_carbohydrate', total_carbohydrate.replace(' ', ''))
-        item.add_xpath('total_carbohydrate_percentage', '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[11]/span[2]/text()')
+        item.add_xpath('total_carbohydrate_percentage',
+                       '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[11]/span[2]/text()')
         if total_fat is not None:
             item.add_value('total_fat', total_fat.replace(' ', ''))
-        item.add_xpath('total_fat_percentage', '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[6]/span[2]/text()')
+        item.add_xpath('total_fat_percentage',
+                       '//div[contains(concat(" ", normalize-space(@class), " "), " product ")]/section[1]/div/div/div[1]/div[5]/div/div[6]/span[2]/text()')
         if trans_fat is not None:
             item.add_value('trans_fat', trans_fat.split(' ')[2])
         item.add_value('vendor', 'Julian Bakery')
@@ -239,7 +423,8 @@ class ProfileSpider(CrawlSpider):
         item = ItemLoader(ProteinBarsItem(), response)
         amount_per_serving = response.xpath(
             '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[1]/th[2]/text()').get()
-        item.add_value("amount_per_serving", amount_per_serving[amount_per_serving.find("(")+1:amount_per_serving.find(")")])
+        item.add_value("amount_per_serving",
+                       amount_per_serving[amount_per_serving.find("(") + 1:amount_per_serving.find(")")])
         item.add_value("brand", 'Carb Killa')
         item.add_value("vendor", 'Grenade')
         item.add_value("available", 'yes')
@@ -247,28 +432,47 @@ class ProfileSpider(CrawlSpider):
         item.add_xpath("images", '//meta[@property="og:image"]/@content')
 
         item.add_xpath('name', '//*[@id="maincontent"]/div[2]/div/div[4]/div[2]/div[1]/div[1]/div/h1/text()')
-        item.add_xpath('calories', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[2]/td[2]/text()')
-        item.add_xpath('cholesterol', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[6]/td[2]/text()')
-        item.add_xpath('cholesterol_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[6]/td[3]/text()')
+        item.add_xpath('calories',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[2]/td[2]/text()')
+        item.add_xpath('cholesterol',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[6]/td[2]/text()')
+        item.add_xpath('cholesterol_percentage',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[6]/td[3]/text()')
         item.add_xpath('description', '//*[@id="maincontent"]/div[2]/div/div[4]/div[2]/div[1]/div[3]/div/p[1]/text()')
-        item.add_xpath('dietary_fiber', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[10]/td[2]/text()')
-        item.add_xpath('dietary_fiber_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[10]/td[3]/text()')
+        item.add_xpath('dietary_fiber',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[10]/td[2]/text()')
+        item.add_xpath('dietary_fiber_percentage',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[10]/td[3]/text()')
         item.add_xpath('ingredients', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[1]/div/div/p[1]/text()')
-        item.add_xpath('potassium', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[8]/td[2]/text()')
-        item.add_xpath('potassium_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[8]/td[3]/text()')
+        item.add_xpath('potassium',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[8]/td[2]/text()')
+        item.add_xpath('potassium_percentage',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[8]/td[3]/text()')
         item.add_xpath('price', '//*[@id="maincontent"]/div[2]/div/div[4]/div[2]/div[1]/div[2]/div/span/text()')
-        item.add_xpath('protein', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[14]/td[2]/text()')
-        item.add_xpath('protein_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[14]/td[3]/text()')
-        item.add_xpath('saturated_fat', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[4]/td[2]/text()')
-        item.add_xpath('saturated_fat_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[4]/td[3]/text()')
-        item.add_xpath('sodium', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[7]/td[2]/text()')
-        item.add_xpath('sodium_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[7]/td[3]/text()')
-        item.add_xpath('sugars', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[11]/td[2]/text()')
-        item.add_xpath('total_carbohydrate', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[9]/td[2]/text()')
-        item.add_xpath('total_carbohydrate_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[9]/td[3]/text()')
-        item.add_xpath('total_fat', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[3]/td[2]/text()')
-        item.add_xpath('total_fat_percentage', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[3]/td[3]/text()')
-        item.add_xpath('trans_fat', '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[5]/td[3]/text()')
+        item.add_xpath('protein',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[14]/td[2]/text()')
+        item.add_xpath('protein_percentage',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[14]/td[3]/text()')
+        item.add_xpath('saturated_fat',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[4]/td[2]/text()')
+        item.add_xpath('saturated_fat_percentage',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[4]/td[3]/text()')
+        item.add_xpath('sodium',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[7]/td[2]/text()')
+        item.add_xpath('sodium_percentage',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[7]/td[3]/text()')
+        item.add_xpath('sugars',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[11]/td[2]/text()')
+        item.add_xpath('total_carbohydrate',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[9]/td[2]/text()')
+        item.add_xpath('total_carbohydrate_percentage',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[9]/td[3]/text()')
+        item.add_xpath('total_fat',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[3]/td[2]/text()')
+        item.add_xpath('total_fat_percentage',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[3]/td[3]/text()')
+        item.add_xpath('trans_fat',
+                       '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[5]/td[3]/text()')
         lists.append(item.load_item())
 
         return lists
@@ -308,16 +512,20 @@ class ProfileSpider(CrawlSpider):
 
                 if "Calcium:" in table_rows[index]:
                     calcium = \
-                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
-                        (index + 1)]
+                        response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                            (index + 1)]
                     item.add_value("calcium", calcium)
 
                 if "Cholesterol, mg:" in table_rows[index]:
-                    cholesterol = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    cholesterol = \
+                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
                     item.add_value("cholesterol", cholesterol)
 
                 if "Dietary Fiber," in table_rows[index]:
-                    dietary_fibr = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    dietary_fibr = \
+                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
                     item.add_value("dietary_fiber", dietary_fibr)
 
                 if "Iron:" in table_rows[index]:
@@ -333,11 +541,14 @@ class ProfileSpider(CrawlSpider):
                     item.add_value("phosphorus", str(table_rows[index]).split(":")[1])
 
                 if "Potassium," in table_rows[index]:
-                    potassium = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    potassium = \
+                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
                     item.add_value("potassium", potassium)
 
                 if "Protein, " in table_rows[index]:
-                    protein = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    protein = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
                     item.add_value("protein", protein)
 
                 if "Riboflavin:" in table_rows[index]:
@@ -362,29 +573,33 @@ class ProfileSpider(CrawlSpider):
                     item.add_value("thiamin", str(table_rows[index]).split(":")[1])
 
                 if "Total Carbohydrate," in table_rows[index]:
-                    total_carb = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                    total_carb = \
+                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
                         (index + 1)]
                     item.add_value("total_carbohydrate", total_carb)
 
                 if "Total Fat," in table_rows[index]:
-                    total_fat = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[(index + 1)]
+                    total_fat = \
+                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                        (index + 1)]
                     item.add_value("total_fat", total_fat)
 
                 if "Vitamin A:" in table_rows[index]:
                     vitamin_a = \
-                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
-                        (index + 1)]
+                        response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                            (index + 1)]
                     item.add_value("vitamin_a", vitamin_a)
 
                 if "Vitamin B12:" in table_rows[index]:
-                    vitamin_b12 = response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                    vitamin_b12 = \
+                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
                         (index + 1)]
                     item.add_value("vitamin_b12", vitamin_b12)
 
                 if "Vitamin B6:" in table_rows[index]:
                     vitamin_b6 = \
-                    response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
-                        (index + 1)]
+                        response.xpath('//div[2]/div[1][@class="PDP-Info__pimContent"]//tr//td/text()').getall()[
+                            (index + 1)]
                     item.add_value("vitamin_b6", vitamin_b6)
 
                 if "Vitamin C:" in table_rows[index]:
@@ -425,7 +640,7 @@ class ProfileSpider(CrawlSpider):
             body['size[]'] = size
             lists.append(
                 FormRequest("https://aussiebodies.com.au/wp-admin/admin-ajax.php", formdata=body,
-                        method='POST', meta=data, dont_filter=True, callback=self.parse_aussiebodies_flavours)
+                            method='POST', meta=data, dont_filter=True, callback=self.parse_aussiebodies_flavours)
             )
         return lists
 
@@ -445,7 +660,6 @@ class ProfileSpider(CrawlSpider):
             item.add_value('product_id', str(flavour['id']))
             item.add_value('images', flavour['image'])
 
-
             serving_size = nutri.xpath("//td[contains(text(), 'Servings per package:')]/text()").get()
             if serving_size:
                 item.add_value('serving_size', str(serving_size).replace('Servings per package: ', ''))
@@ -453,9 +667,11 @@ class ProfileSpider(CrawlSpider):
             item.add_xpath('protein', "//td[contains(text(), 'Protein, Total')]/following-sibling::td[1]/text()")
             item.add_xpath('total_fat', "//td[contains(text(), 'Fat, Total')]/following-sibling::td[1]/text()")
             item.add_xpath('saturated_fat', "//td[contains(text(), 'Saturated')]/following-sibling::td[1]/text()")
-            item.add_xpath('total_carbohydrate', "//td[contains(text(), 'Carbohydrate')]/following-sibling::td[1]/text()")
+            item.add_xpath('total_carbohydrate',
+                           "//td[contains(text(), 'Carbohydrate')]/following-sibling::td[1]/text()")
             item.add_xpath('sugars', "//td[contains(text(), 'Sugars')]/following-sibling::td[1]/text()")
-            item.add_xpath('dietary_fiber', "//td[contains(text(), 'Dietary Fibre, Total')]/following-sibling::td[1]/text()")
+            item.add_xpath('dietary_fiber',
+                           "//td[contains(text(), 'Dietary Fibre, Total')]/following-sibling::td[1]/text()")
             item.add_xpath('polydextrose', "//td[contains(text(), 'Polydextrose')]/following-sibling::td[1]/text()")
             item.add_xpath('sodium', "//td[contains(text(), 'Sodium')]/following-sibling::td[1]/text()")
             item.add_xpath('sorbitol', "//td[contains(text(), 'Sorbitol')]/following-sibling::td[1]/text()")
@@ -465,7 +681,6 @@ class ProfileSpider(CrawlSpider):
             lists.append(item.load_item())
 
         return lists
-
 
     def parse_items_bodylab(self, response):
         lists = []
@@ -525,7 +740,7 @@ class ProfileSpider(CrawlSpider):
             item.add_value("sku", data['sku'])
             item.add_value("barcode", data['barcode'])
             item.add_value("available", "yes" if data['available'] else "no")
-            item.add_value("price", str(data['price']/100))
+            item.add_value("price", str(data['price'] / 100))
             item.add_value("tags", ', '.join(json_data['tags']))
             item.add_value("vendor", json_data['vendor'])
             item.add_value("images", " , ".join(json_data['images']))
@@ -540,7 +755,7 @@ class ProfileSpider(CrawlSpider):
 
         for url in response.xpath("//div[@class='item_detail']/a/@href").extract():
             lists.append(
-                Request(base_url+url, callback=self.thinkthin)
+                Request(base_url + url, callback=self.thinkthin)
             )
 
         return lists
@@ -554,7 +769,7 @@ class ProfileSpider(CrawlSpider):
         description = response.xpath("//meta[@property='og:description']/@content").get()
         tags = ', '.join(response.xpath("//div[@id='product_designations']//li/text()").extract())
         nutrition_url = response.xpath("//div[@id='product_nutrition']/img/@src").get()
-        ingredients =response.xpath("//span[@itemprop='description']//text()").get()
+        ingredients = response.xpath("//span[@itemprop='description']//text()").get()
 
         for res in response.xpath("//div[@id='REG-groups']//li[@class='variant_pricing']"):
             item = ItemLoader(ProteinBarsItem(), res)
@@ -580,7 +795,8 @@ class ProfileSpider(CrawlSpider):
     def parse_items_slim4life(self, response):
         lists = []
 
-        for url in response.xpath("//*[@class='woocommerce-LoopProduct-link woocommerce-loop-product__link']/@href").extract():
+        for url in response.xpath(
+                "//*[@class='woocommerce-LoopProduct-link woocommerce-loop-product__link']/@href").extract():
             lists.append(
                 Request(url, callback=self.slim4life)
             )
@@ -644,7 +860,7 @@ class ProfileSpider(CrawlSpider):
 
         for url in response.xpath("//*[@class='product-title']/a/@href").extract():
             lists.append(
-                Request(base_url+url, callback=self.promax)
+                Request(base_url + url, callback=self.promax)
             )
 
         return lists
@@ -720,10 +936,12 @@ class ProfileSpider(CrawlSpider):
         if total_carbohydrate:
             if len(response.xpath("//*[contains(text(), 'Total Carbohydrate')]/..//td")) > 2:
                 item.add_xpath("total_carbohydrate", "//*[contains(text(), 'Total Carbohydrate')]/../td[2]//text()")
-                item.add_xpath("total_carbohydrate_percentage", "//*[contains(text(), 'Total Carbohydrate')]/../td[3]//text()")
+                item.add_xpath("total_carbohydrate_percentage",
+                               "//*[contains(text(), 'Total Carbohydrate')]/../td[3]//text()")
             else:
                 item.add_value("total_carbohydrate", str(total_carbohydrate).split(" ")[-1])
-                item.add_xpath("total_carbohydrate_percentage", "//*[contains(text(), 'Total Carbohydrate')]/../td[2]//text()")
+                item.add_xpath("total_carbohydrate_percentage",
+                               "//*[contains(text(), 'Total Carbohydrate')]/../td[2]//text()")
 
         dietary_fiber = response.xpath("//*[contains(text(), 'Dietary Fiber')]//text()").get()
         if dietary_fiber:
@@ -744,11 +962,14 @@ class ProfileSpider(CrawlSpider):
         protein = response.xpath("//div[@class='nutritionalfacts']//td[contains(text(), 'Protein')]//text()").get()
         if protein:
             if len(response.xpath("//div[@class='nutritionalfacts']//td[contains(text(), 'Protein')]/..//td")) > 2:
-                item.add_xpath("protein", "//div[@class='nutritionalfacts']//td[contains(text(), 'Protein')]/../td[2]//text()")
-                item.add_xpath("protein_percentage", "//div[@class='nutritionalfacts']//td[contains(text(), 'Protein')]/../td[3]//text()")
+                item.add_xpath("protein",
+                               "//div[@class='nutritionalfacts']//td[contains(text(), 'Protein')]/../td[2]//text()")
+                item.add_xpath("protein_percentage",
+                               "//div[@class='nutritionalfacts']//td[contains(text(), 'Protein')]/../td[3]//text()")
             else:
                 item.add_value("protein", str(protein).split(" ")[-1])
-                item.add_xpath("protein_percentage", "//div[@class='nutritionalfacts']//td[contains(text(), 'Protein')]/../td[2]//text()")
+                item.add_xpath("protein_percentage",
+                               "//div[@class='nutritionalfacts']//td[contains(text(), 'Protein')]/../td[2]//text()")
 
         return item.load_item()
 
@@ -758,7 +979,7 @@ class ProfileSpider(CrawlSpider):
 
         for url in response.xpath("//div[@class='item_detail']/a/@href").extract():
             lists.append(
-                Request(base_url+url, callback=self.metrx)
+                Request(base_url + url, callback=self.metrx)
             )
 
         return lists
@@ -847,7 +1068,7 @@ class ProfileSpider(CrawlSpider):
             item.add_value("sku", data['sku'])
             item.add_value("barcode", data['barcode'])
             item.add_value("available", "yes" if data['available'] else "no")
-            item.add_value("price", str(data['price']/100))
+            item.add_value("price", str(data['price'] / 100))
             item.add_value("tags", ', '.join(json_data['tags']))
             item.add_value("vendor", json_data['vendor'])
             item.add_value("images", " , ".join(json_data['images']))
@@ -896,7 +1117,7 @@ class ProfileSpider(CrawlSpider):
             item.add_value("sku", data['sku'])
             item.add_value("barcode", data['barcode'])
             item.add_value("available", "yes" if data['available'] else "no")
-            item.add_value("price", str(data['price']/100))
+            item.add_value("price", str(data['price'] / 100))
             item.add_value("tags", ', '.join(json_data['tags']))
             item.add_value("vendor", json_data['vendor'])
             item.add_value("images", " , ".join(json_data['images']))
@@ -947,15 +1168,17 @@ class ProfileSpider(CrawlSpider):
             item.add_value("sku", data['sku'])
             item.add_value("barcode", data['barcode'])
             item.add_value("available", "yes" if data['available'] else "no")
-            item.add_value("price", str(data['price']/100))
+            item.add_value("price", str(data['price'] / 100))
             item.add_value("tags", ', '.join(json_data['tags']))
             item.add_value("vendor", json_data['vendor'])
             item.add_value("images", " , ".join(json_data['images']))
 
             item.add_xpath("protein", "//div[@class='grid-item grid-item-stats product-stats']//li[1]/span/text()")
-            item.add_xpath("total_carbohydrate", "//div[@class='grid-item grid-item-stats product-stats']//li[2]/span/text()")
+            item.add_xpath("total_carbohydrate",
+                           "//div[@class='grid-item grid-item-stats product-stats']//li[2]/span/text()")
             item.add_xpath("sugars", "//div[@class='grid-item grid-item-stats product-stats']//li[3]/span/text()")
-            item.add_xpath("dietary_fiber", "//div[@class='grid-item grid-item-stats product-stats']//li[4]/span/text()")
+            item.add_xpath("dietary_fiber",
+                           "//div[@class='grid-item grid-item-stats product-stats']//li[4]/span/text()")
 
             lists.append(item.load_item())
         return lists
@@ -986,44 +1209,76 @@ class ProfileSpider(CrawlSpider):
             item.add_value("sku", data['sku'])
             item.add_value("barcode", data['barcode'])
             item.add_value("available", "yes" if data['available'] else "no")
-            item.add_value("price", str(data['price']/100))
+            item.add_value("price", str(data['price'] / 100))
             item.add_value("tags", ', '.join(json_data['tags']))
             item.add_value("vendor", json_data['vendor'])
             item.add_value("images", " , ".join(json_data['images']))
             item.add_xpath("serving_size", "//td[text()='Serving Size']/following-sibling::td[1]/text()")
             item.add_xpath("amount_per_serving", "//td[text()='Amount Per Serving']/following-sibling::td[2]/text()")
-            item.add_xpath("calories", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Calories']/following-sibling::td[1]/text()")
-            item.add_xpath("calories_from_fat", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Calories from Fat']/following-sibling::td[1]/text()")
-            item.add_xpath("total_fat", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Total Fat']/following-sibling::td[1]/text()")
-            item.add_xpath("total_fat_percentage", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Total Fat']/following-sibling::td[2]/text()")
-            item.add_xpath("saturated_fat", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Saturated Fat']/following-sibling::td[1]/text()")
-            item.add_xpath("saturated_fat_percentage", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Saturated Fat']/following-sibling::td[2]/text()")
-            item.add_xpath("trans_fat", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Trans Fat']/following-sibling::td[1]/text()")
-            item.add_xpath("cholesterol", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Cholesterol']/following-sibling::td[1]/text()")
-            item.add_xpath("cholesterol_percentage", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Cholesterol']/following-sibling::td[2]/text()")
-            item.add_xpath("sodium", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Sodium']/following-sibling::td[1]/text()")
-            item.add_xpath("sodium_percentage", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Sodium']/following-sibling::td[2]/text()")
-            item.add_xpath("potassium", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Potassium']/following-sibling::td[1]/text()")
-            item.add_xpath("potassium_percentage", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Potassium']/following-sibling::td[2]/text()")
-            item.add_xpath("total_carbohydrate", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Total Carbohydrate']/following-sibling::td[1]/text()")
-            item.add_xpath("total_carbohydrate_percentage", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Total Carbohydrate']/following-sibling::td[2]/text()")
-            item.add_xpath("dietary_fiber", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Dietary Fiber']/following-sibling::td[1]/text()")
-            item.add_xpath("dietary_fiber_percentage", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Dietary Fiber']/following-sibling::td[2]/text()")
-            item.add_xpath("sugars", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Sugars']/following-sibling::td[1]/text()")
-            item.add_xpath("protein", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Protein']/following-sibling::td[1]/text()")
-            item.add_xpath("protein_percentage", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Protein']/following-sibling::td[2]/text()")
-            item.add_xpath("vitamin_a", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Vitamin A']/following-sibling::td[1]/text()")
-            item.add_xpath("vitamin_c", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Vitamin C']/following-sibling::td[2]/text()")
-            item.add_xpath("calcium", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Calcium']/following-sibling::td[2]/text()")
-            item.add_xpath("iron", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Iron']/following-sibling::td[2]/text()")
-            item.add_xpath("thiamin", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Thiamin']/following-sibling::td[2]/text()")
-            item.add_xpath("riboflavin", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Riboflavin']/following-sibling::td[2]/text()")
-            item.add_xpath("niacin", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Niacin']/following-sibling::td[2]/text()")
-            item.add_xpath("vitamin_b6", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Vitamin B6']/following-sibling::td[2]/text()")
-            item.add_xpath("vitamin_b12", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Vitamin B12']/following-sibling::td[2]/text()")
-            item.add_xpath("phosphorus", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Phosphorus']/following-sibling::td[2]/text()")
-            item.add_xpath("magnesium", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Magnesium']/following-sibling::td[2]/text()")
-            item.add_xpath("manganese", f"//div[@data-fade-index='variants-{index+1}']//td[text()='Manganese']/following-sibling::td[2]/text()")
+            item.add_xpath("calories",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Calories']/following-sibling::td[1]/text()")
+            item.add_xpath("calories_from_fat",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Calories from Fat']/following-sibling::td[1]/text()")
+            item.add_xpath("total_fat",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Total Fat']/following-sibling::td[1]/text()")
+            item.add_xpath("total_fat_percentage",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Total Fat']/following-sibling::td[2]/text()")
+            item.add_xpath("saturated_fat",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Saturated Fat']/following-sibling::td[1]/text()")
+            item.add_xpath("saturated_fat_percentage",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Saturated Fat']/following-sibling::td[2]/text()")
+            item.add_xpath("trans_fat",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Trans Fat']/following-sibling::td[1]/text()")
+            item.add_xpath("cholesterol",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Cholesterol']/following-sibling::td[1]/text()")
+            item.add_xpath("cholesterol_percentage",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Cholesterol']/following-sibling::td[2]/text()")
+            item.add_xpath("sodium",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Sodium']/following-sibling::td[1]/text()")
+            item.add_xpath("sodium_percentage",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Sodium']/following-sibling::td[2]/text()")
+            item.add_xpath("potassium",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Potassium']/following-sibling::td[1]/text()")
+            item.add_xpath("potassium_percentage",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Potassium']/following-sibling::td[2]/text()")
+            item.add_xpath("total_carbohydrate",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Total Carbohydrate']/following-sibling::td[1]/text()")
+            item.add_xpath("total_carbohydrate_percentage",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Total Carbohydrate']/following-sibling::td[2]/text()")
+            item.add_xpath("dietary_fiber",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Dietary Fiber']/following-sibling::td[1]/text()")
+            item.add_xpath("dietary_fiber_percentage",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Dietary Fiber']/following-sibling::td[2]/text()")
+            item.add_xpath("sugars",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Sugars']/following-sibling::td[1]/text()")
+            item.add_xpath("protein",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Protein']/following-sibling::td[1]/text()")
+            item.add_xpath("protein_percentage",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Protein']/following-sibling::td[2]/text()")
+            item.add_xpath("vitamin_a",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Vitamin A']/following-sibling::td[1]/text()")
+            item.add_xpath("vitamin_c",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Vitamin C']/following-sibling::td[2]/text()")
+            item.add_xpath("calcium",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Calcium']/following-sibling::td[2]/text()")
+            item.add_xpath("iron",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Iron']/following-sibling::td[2]/text()")
+            item.add_xpath("thiamin",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Thiamin']/following-sibling::td[2]/text()")
+            item.add_xpath("riboflavin",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Riboflavin']/following-sibling::td[2]/text()")
+            item.add_xpath("niacin",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Niacin']/following-sibling::td[2]/text()")
+            item.add_xpath("vitamin_b6",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Vitamin B6']/following-sibling::td[2]/text()")
+            item.add_xpath("vitamin_b12",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Vitamin B12']/following-sibling::td[2]/text()")
+            item.add_xpath("phosphorus",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Phosphorus']/following-sibling::td[2]/text()")
+            item.add_xpath("magnesium",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Magnesium']/following-sibling::td[2]/text()")
+            item.add_xpath("manganese",
+                           f"//div[@data-fade-index='variants-{index + 1}']//td[text()='Manganese']/following-sibling::td[2]/text()")
 
             lists.append(item.load_item())
         return lists
@@ -1049,6 +1304,7 @@ def strip_strings(in_list):
 
 def remove_emptys(in_list):
     return filter(len, filter(None, in_list))
+
 
 def remove_break(input):
     return str(input).replace('<br>', ',')
