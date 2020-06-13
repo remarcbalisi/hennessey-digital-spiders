@@ -15,6 +15,7 @@ from selenium.common.exceptions \
 from selenium.webdriver.support.wait import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
+import json
 
 chrome_options = Options()
 chrome_options.add_argument("--headless")
@@ -27,7 +28,6 @@ class GrenadeSpider(CrawlSpider):
         super(GrenadeSpider, self).__init__(*args, **kwargs)
         self.url = 'https://www.grenade.com/us/grenade-carb-killa/'
         self.browser = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
-        # self.browser = webdriver.Chrome(ChromeDriverManager().install())
         self.review_string_arr = []
 
     def start_requests(self):
@@ -65,8 +65,6 @@ class GrenadeSpider(CrawlSpider):
         return lists
 
     def item(self, response):
-        print('item')
-        print(response)
         lists = []
         item = ItemLoader(ProteinBarsItem(), response)
         amount_per_serving = response.xpath(
@@ -122,7 +120,7 @@ class GrenadeSpider(CrawlSpider):
         item.add_xpath('trans_fat',
                        '/html/body/div[1]/section/div[1]/div[1]/div[30]/div[2]/table/tbody/tr[5]/td[3]/text()')
         item.add_xpath('shipping_info', '//*[@id="open-shipping-modal"]/text()')
-        item.add_value('reviews', self.review_string_arr)
+        item.add_value('reviews', json.dumps(self.review_string_arr))
         lists.append(item.load_item())
 
         return lists
@@ -135,20 +133,40 @@ class GrenadeSpider(CrawlSpider):
                 button = WebDriverWait(self.browser, 10).until(
                     EC.presence_of_all_elements_located((By.ID, 'more-reviews')))
                 button[0].click()
-                print('button')
-                print(button)
-                # button[0].click()
             except NoSuchElementException:
                 button_is_clickable = False
 
             except ElementNotInteractableException:
                 button_is_clickable = False
 
-            except ElementClickInterceptedException: continue
+            except ElementClickInterceptedException:
+                continue
 
-        reviews = WebDriverWait(self.browser, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.review-body-text')))
+        reviews = WebDriverWait(self.browser, 10).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.review-wrapper')))
 
         for review in reviews:
+            name = review.find_element_by_xpath("//div[@class='review-author']/span")
+            title = ''
             body = review.find_element_by_css_selector("span[class='partial']")
-            print(body)
-            self.review_string_arr.append(body.text)
+            stars = {'quality': '60', 'effectiveness': '60', 'price': '60', 'taste': '60'}
+
+            stars_array = []
+            for i in range(4):
+                rate_name = review.find_element_by_xpath(f"//div[@class='review-ratings']/div[{(i+1)}]/span/span")
+                review_rating = review.find_element_by_xpath(f"//div[@class='review-ratings']/div[{(i+1)}]/div/span/span")
+
+                stars_array.append(
+                    {
+                        'label': rate_name.text,
+                        'result': review_rating.text
+                    }
+                )
+
+            review_contents = {
+                'name': name.text.replace('BY ', ''),
+                'body': body.text,
+                'stars': stars_array,
+                'title': 'title',
+            }
+            self.review_string_arr.append(review_contents)
