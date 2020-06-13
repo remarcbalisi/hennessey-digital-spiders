@@ -149,7 +149,6 @@ class GrenadeSpider(CrawlSpider):
             name = review.find_element_by_xpath("//div[@class='review-author']/span")
             title = ''
             body = review.find_element_by_css_selector("span[class='partial']")
-            stars = {'quality': '60', 'effectiveness': '60', 'price': '60', 'taste': '60'}
 
             stars_array = []
             for i in range(4):
@@ -167,6 +166,6 @@ class GrenadeSpider(CrawlSpider):
                 'name': name.text.replace('BY ', ''),
                 'body': body.text,
                 'stars': stars_array,
-                'title': 'title',
+                'title': title,
             }
             self.review_string_arr.append(review_contents)
