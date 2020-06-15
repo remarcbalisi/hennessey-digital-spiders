@@ -21,11 +21,11 @@ chrome_options = Options()
 chrome_options.add_argument("--headless")
 
 
-class GrenadeSpider(CrawlSpider):
+class JulianBakerySpider(CrawlSpider):
     name = 'julianbakery'
 
     def __init__(self, *args, **kwargs):
-        super(GrenadeSpider, self).__init__(*args, **kwargs)
+        super(JulianBakerySpider, self).__init__(*args, **kwargs)
         self.url = 'https://julianbakery.com/shop/?fwp_categories=protein-bar&fwp_load_more=5'
         self.browser = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
 
